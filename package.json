@@ -1,0 +1,20 @@
+{
+  "name": "vanity-matching",
+  "version": "3.0.0",
+  "description": "Vanity's open, inspectable matching algorithm — the exact ruleset that composes each user's weekly slate.",
+  "type": "module",
+  "license": "MIT",
+  "keywords": ["matching", "dating", "algorithm", "transparency", "open-source"],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "example": "tsx example.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.4"
+  }
+}
