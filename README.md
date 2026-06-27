@@ -1,6 +1,6 @@
 # Vanity — the matching algorithm
 
-This is the **open, inspectable** matching algorithm behind [Vanity](https://vanity-production-b5fb.up.railway.app),
+This is the **open, inspectable** matching algorithm behind [Vanity](https://vanity.dating),
 a dating app built on the idea that you should be able to *see why* you're seeing who you're seeing.
 
 There is no second, hidden ranker. **What's in this repository is exactly what runs in production**
