@@ -22,8 +22,6 @@ function person(userId: number, gender: string, pref: string, age: number): Pers
     genderModality: 'cis',
     dateOfBirth: `${year}-06-01`,
     heightCm: null,
-    weightG: null,
-    countryOfBirthId: 1,
     latitude: HERE.lat + (Math.random() - 0.5) * 0.05,
     longitude: HERE.lon + (Math.random() - 0.5) * 0.05,
   };
@@ -34,11 +32,8 @@ const prefs: Prefs = {
   maxAge: 45,
   maxDistanceKm: 25,
   includeTrans: true,
-  nationalityCountryIds: null,
   minHeightCm: null,
   maxHeightCm: null,
-  minWeightG: null,
-  maxWeightG: null,
 };
 
 const p = (person: Person): Participant => ({ person, prefs });

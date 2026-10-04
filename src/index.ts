@@ -2,7 +2,7 @@
 // This is exactly the ruleset that composes a user's weekly slate; there is no
 // second, hidden ranker. See README.md for the pipeline.
 
-export { ALGORITHM_VERSION, COMFORT_LOAD } from './version';
+export { ALGORITHM_VERSION, COMFORT_LOAD, MAX_SLATE_SIZE } from './version';
 export { seededScore } from './rng';
 export { haversineKm, ageFromDob } from './geo';
 export {

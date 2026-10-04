@@ -10,7 +10,8 @@
   },
   "scripts": {
     "example": "tsx example.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test test/*.test.ts"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",
