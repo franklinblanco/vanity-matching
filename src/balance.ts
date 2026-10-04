@@ -46,8 +46,8 @@ export function computeBalance(genders: string[]): MarketBalance {
 
 /**
  * Target slate size for a user of `gender`, before capping by how many
- * candidates actually passed the filters. Scarce side (and anyone outside the
- * two main groups) gets up to `L`; the abundant side gets about `L / r`.
+ * candidates actually passed the filters (and by MAX_SLATE_SIZE in the engine). Scarce side
+ * (and anyone outside the two main groups) gets up to `L`; the abundant side gets about `L / r`.
  */
 export function targetSlateSize(gender: string, balance: MarketBalance, load: number): number {
   if (balance.abundantGender && gender === balance.abundantGender) {

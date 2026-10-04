@@ -4,12 +4,10 @@ import { ageFromDob } from './geo';
 export interface Person {
   userId: number;
   gender: string;
-  sexualPreference: string; // 'male' | 'female' | 'everyone' | ...
-  genderModality: string | null; // 'cis' | 'trans' | null
+  sexualPreference: string; // 'male' | 'female' | 'everyone'
+  genderModality: string | null; // 'cis' | 'trans' | 'unspecified' | null
   dateOfBirth: string;
   heightCm: number | null;
-  weightG: number | null;
-  countryOfBirthId: number;
   latitude: number;
   longitude: number;
 }
@@ -19,11 +17,8 @@ export interface Prefs {
   maxAge: number;
   maxDistanceKm: number;
   includeTrans: boolean;
-  nationalityCountryIds: number[] | null;
   minHeightCm: number | null;
   maxHeightCm: number | null;
-  minWeightG: number | null;
-  maxWeightG: number | null;
 }
 
 /** Whether `gender` is acceptable to someone whose stated preference is `pref`. */
@@ -31,7 +26,7 @@ export function acceptsGender(pref: string, gender: string): boolean {
   return pref === 'everyone' || pref === gender;
 }
 
-/** True if `viewer` is acceptable to `candidate`'s orientation (mutual interest). */
+/** True if `viewer` is acceptable to `candidate`'s orientation. */
 export function isMutual(viewer: Person, candidate: Person): boolean {
   return acceptsGender(candidate.sexualPreference, viewer.gender);
 }
@@ -42,58 +37,47 @@ export interface FilterResult {
   filtersPassed: string[];
 }
 
-function inRange(value: number | null, min: number | null, max: number | null): boolean {
-  if (value === null) return false; // a set filter excludes candidates missing the attribute
-  if (min !== null && value < min) return false;
-  if (max !== null && value > max) return false;
-  return true;
+/**
+ * One direction: does `candidate` satisfy `prefs` (the preferences of the person looking)?
+ * Returns the name of the first failing filter, or the list that passed.
+ */
+function oneWay(looker: Person, prefs: Prefs, candidate: Person, now: Date): { ok: boolean; passed: string[] } {
+  const passed: string[] = [];
+  if (!acceptsGender(looker.sexualPreference, candidate.gender)) return { ok: false, passed };
+  passed.push('orientation');
+
+  // Trans inclusion acts only on self-disclosed modality; it never bans anyone from the app.
+  if (!prefs.includeTrans && candidate.genderModality === 'trans') return { ok: false, passed };
+
+  const age = ageFromDob(candidate.dateOfBirth, now);
+  if (age < prefs.minAge || age > prefs.maxAge) return { ok: false, passed };
+  passed.push('age');
+
+  if (prefs.minHeightCm !== null || prefs.maxHeightCm !== null) {
+    const h = candidate.heightCm;
+    if (h === null) return { ok: false, passed }; // a set filter excludes people who didn't say
+    if (prefs.minHeightCm !== null && h < prefs.minHeightCm) return { ok: false, passed };
+    if (prefs.maxHeightCm !== null && h > prefs.maxHeightCm) return { ok: false, passed };
+    passed.push('height');
+  }
+  return { ok: true, passed };
 }
 
 /**
- * Applies the hard filters from MECHANICS.md §1 step 1. Returns whether the
- * candidate survives and which filters were checked (all listed filters passed
- * when `passed` is true).
+ * The hard filters (MECHANICS.md §1 step 1), applied **both ways** in v4: the candidate must
+ * pass the viewer's filters *and* the viewer must pass the candidate's. A non-match never
+ * appears. Distance is soft and handled by the engine.
  */
 export function evaluateHardFilters(
   viewer: Person,
-  prefs: Prefs,
+  viewerPrefs: Prefs,
   candidate: Person,
+  candidatePrefs: Prefs,
   now: Date,
 ): FilterResult {
-  const filtersPassed: string[] = [];
-
-  if (!acceptsGender(viewer.sexualPreference, candidate.gender)) return fail();
-  filtersPassed.push('orientation');
-
-  // Trans inclusion is the viewer's own, symmetric preference (inclusive default).
-  // It only acts on self-disclosed modality; it never bans anyone from the app.
-  if (!prefs.includeTrans && candidate.genderModality === 'trans') return fail();
-
-  const age = ageFromDob(candidate.dateOfBirth, now);
-  if (age < prefs.minAge || age > prefs.maxAge) return fail();
-  filtersPassed.push('age');
-
-  // Distance is handled as a soft filter in the engine (out-of-range people only
-  // appear when there's no one in range), so it's not a hard fail here.
-
-  if (prefs.nationalityCountryIds && prefs.nationalityCountryIds.length > 0) {
-    if (!prefs.nationalityCountryIds.includes(candidate.countryOfBirthId)) return fail();
-    filtersPassed.push('nationality');
-  }
-
-  if (prefs.minHeightCm !== null || prefs.maxHeightCm !== null) {
-    if (!inRange(candidate.heightCm, prefs.minHeightCm, prefs.maxHeightCm)) return fail();
-    filtersPassed.push('height');
-  }
-
-  if (prefs.minWeightG !== null || prefs.maxWeightG !== null) {
-    if (!inRange(candidate.weightG, prefs.minWeightG, prefs.maxWeightG)) return fail();
-    filtersPassed.push('weight');
-  }
-
-  return { passed: true, filtersPassed };
-
-  function fail(): FilterResult {
-    return { passed: false, filtersPassed };
-  }
+  const forward = oneWay(viewer, viewerPrefs, candidate, now);
+  if (!forward.ok) return { passed: false, filtersPassed: forward.passed };
+  const back = oneWay(candidate, candidatePrefs, viewer, now);
+  if (!back.ok) return { passed: false, filtersPassed: forward.passed };
+  return { passed: true, filtersPassed: forward.passed };
 }

@@ -5,7 +5,7 @@ a dating app built on the idea that you should be able to *see why* you're seein
 
 There is no second, hidden ranker. **What's in this repository is exactly what runs in production**
 to compose each user's weekly slate. The current ruleset is `ALGORITHM_VERSION` in
-[`src/version.ts`](./src/version.ts) (currently **`v3`**), and that version string is stamped onto
+[`src/version.ts`](./src/version.ts) (currently **`v4`**), and that version string is stamped onto
 every round so anyone can tell which rules produced their results.
 
 Most dating apps treat their matching as a trade secret — a black box that decides who you get to
@@ -28,28 +28,31 @@ Two ideas drive it:
 
 ## The pipeline (per user `u`)
 
-1. **Candidate pool** — every other active user in the same market. (Who's been shown before is
-   passed in as `shownPairs`; they aren't excluded, they're deprioritized — see step 5.)
-2. **Hard filters** — a non-match never appears:
-   - **orientation** — `u`'s stated preference accepts the candidate's gender;
-   - **age** — within `u`'s `[minAge, maxAge]`;
-   - **trans inclusion** — `u`'s own symmetric preference, acting only on self-disclosed modality
+1. **Candidate pool** — every other eligible person in the same market (the app filters for complete,
+   visible, consented profiles before calling the algorithm).
+2. **Hard filters, both ways** — a non-match never appears. `c` must pass `u`'s filters **and** `u`
+   must pass `c`'s:
+   - **orientation** — each accepts the other's gender;
+   - **age** — each is inside the other's `[minAge, maxAge]`;
+   - **trans inclusion** — each person's own preference, acting only on self-disclosed modality
      (inclusive by default; it never bans anyone from the platform);
-   - **paid filters**, if `u` set them — nationality / height / weight ranges.
-3. **Distance is *soft*** — people beyond `u`'s `maxDistanceKm` are not hard-failed; they rank below
-   everyone in-range and only fill the slate when there aren't enough nearby (so your slate never
-   ends up empty).
-4. **Mutuality** — a candidate is *mutual* if `u` is also acceptable to *their* orientation. Mutual
-   matches rank above one-way ones.
-5. **Ranking** — a **documented, deterministic** pseudo-random score in `[0, 1)`, seeded by
-   `roundSeed:viewerId:candidateId` (FNV-1a → mulberry32, in [`src/rng.ts`](./src/rng.ts)). The sort
-   order is: in-range before far, fresh before already-seen, mutual before one-way, then by score
-   descending. The score is intentionally near-random — the point of `v3` is that ranking is
-   *auditable and reproducible*, not that it's clever. Anyone can recompute it.
-6. **Sizing** (the balancing model) — per market we take the two largest gender groups as `scarce`
-   and `abundant`, with ratio `r = |abundant| / |scarce|` and a comfort cap `L` (`COMFORT_LOAD`).
-   A scarce-side user's slate holds up to `L`; an abundant-side user's holds about `L / r` (≥ 1);
-   everyone is additionally capped by how many candidates actually passed the filters.
+   - **height** — only if set.
+3. **Blocks** — pairs where either person blocked the other are never composed.
+4. **Distance is *soft*** — people beyond `u`'s `maxDistanceKm` rank below everyone in range and only
+   fill the slate when there aren't enough people nearby.
+5. **Freshness** — people already shown to `u` rank below fresh ones (the "meet again" fallback).
+6. **Ranking** — a **documented, deterministic** pseudo-random score in `[0, 1)`, seeded by
+   `roundSeed:viewerId:candidateId` (FNV-1a → mulberry32, [`src/rng.ts`](./src/rng.ts)). Order:
+   in-range, fresh, then score. Anyone can recompute it.
+7. **Sizing** (the balancing model) — the two largest gender groups are `scarce` and `abundant`, with
+   ratio `r = |abundant| / |scarce|` and comfort cap `L = 6`. Scarce-side slates hold up to `L`; the
+   abundant side about `L / r` (≥ 1); no slate holds more than 6.
+8. **Capacity-capped assignment** — **nobody appears on more than `L` slates in a round.** Slots are
+   handed out round-robin by slate position (everyone's first pick before anyone's second) in a seeded
+   viewer order; anyone who has reached `L` is skipped. This is what keeps the most-wanted people from
+   being buried, per person rather than on average.
+
+See [`CHANGELOG.md`](./CHANGELOG.md) for what changed from v3.
 
 ## It's pure
 
@@ -63,6 +66,7 @@ nondeterminism is *who's in the market*, which is data, not logic.
 ```bash
 npm install
 npm run example
+npm test        # the same unit tests the app's backend runs
 ```
 
 [`example.ts`](./example.ts) builds a small, deliberately lopsided market (5 women / 2 men), composes
@@ -87,12 +91,13 @@ const { balance, slates } = composeSlates(participants, {
 | [`src/balance.ts`](./src/balance.ts) | the marketplace-balancing model and slate sizing |
 | [`src/rng.ts`](./src/rng.ts) | the deterministic seeded score |
 | [`src/geo.ts`](./src/geo.ts) | haversine distance, age-from-DOB |
-| [`src/version.ts`](./src/version.ts) | `ALGORITHM_VERSION`, `COMFORT_LOAD` |
+| [`src/version.ts`](./src/version.ts) | `ALGORITHM_VERSION`, `COMFORT_LOAD`, `MAX_SLATE_SIZE` |
+| [`test/`](./test) | unit tests (`node:test`) |
 
 ## Scope
 
 This repo is the matching algorithm only — the part we want open. It's a faithful snapshot of the
-`v3` ruleset running in the app. The rest of Vanity (accounts, chat, storage, the API) is a separate,
+`v4` ruleset running in the app. The rest of Vanity (accounts, chat, storage, the API) is a separate,
 private codebase. Found something you'd improve? Open an issue — critique of the algorithm is exactly
 the point.
 
